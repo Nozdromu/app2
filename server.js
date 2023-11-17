@@ -8,6 +8,7 @@ const session = require('express-session')
 const socketio = require('socket.io')
 const http = require('http')
 const MySQLStore = require('express-mysql-session')(session);
+const path=require('path')
 console.log(process.env.mysql_user)
 
 var connection = mysql.createConnection({
@@ -37,6 +38,7 @@ const sessionMiddleware = session({
 
 
 const app = express()
+app.use(express.static(path.join(__dirname, 'build')));
 const server = http.createServer(app)
 const port = 3001
 app.set('trust proxy', 1) // trust first proxy
@@ -66,10 +68,7 @@ connection.query('SELECT * FROM test.address_book;', (err, res, field) => {
     addressList = res;
     console.log(addressList)
 })
-app.get('/', (req, res) => {
-    console.log(process.env)
-    res.send(process.env.uber_client_secret);
-})
+
 app.get('/gencode', (req, res) => {
     console.log(req.query);
     console.log(process.env.uber_client_secret)
@@ -151,7 +150,9 @@ var get_directions = (destination, origin, callback) => {
     })
 
 }
-
+app.get('/',(req,res)=>{
+    res.sendFile('index.html')
+})
 app.get('/price', (req, res) => {
     var data = req.query;
     console.log(data);
