@@ -1,12 +1,13 @@
 import { Card, Col, Container, Form, InputGroup, NavLink, Row } from "react-bootstrap";
 import { Link } from 'react-router-dom'
 import { date,time } from "./test";
-import { useContext } from "react";
+import { useContext, useRef } from "react";
 
 
 function Pageone(props) {
     const { data_date, setdate } = useContext(date)
     const { data_time, settime } = useContext(time)
+    const ref_time=useRef(null)
 
     return (
         <Container>
@@ -23,7 +24,7 @@ function Pageone(props) {
                                 <Form.Control type="input"></Form.Control>
                                 <input type="date"></input>
                                 </InputGroup> */}
-                                <Form.Control type="date" value={data_date} onChange={(e)=>{setdate(e.currentTarget.value)}}/>
+                                <Form.Control type="date" value={data_date} onChange={(e)=>{setdate(e.currentTarget.value);console.log(e.currentTarget.value)}}/>
                                 
                             </Form.Group>
                         </Col>
@@ -32,7 +33,8 @@ function Pageone(props) {
                         <Col>
                             <Form.Group className="mb-3">
                                 <Form.Label>出发时间</Form.Label>
-                                <Form.Control type="time" value={data_time} onChange={(e)=>{settime(e.currentTarget.value)}}></Form.Control>
+                                <Form.Control type="time" value={data_time} onChange={(e)=>{settime(e.currentTarget.value);console.log(e.currentTarget.value);console.log(ref_time);}}></Form.Control>
+
                             </Form.Group>
                         </Col>
                     </Row>

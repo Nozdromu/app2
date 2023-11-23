@@ -8,7 +8,7 @@ const session = require('express-session')
 const socketio = require('socket.io')
 const http = require('http')
 const MySQLStore = require('express-mysql-session')(session);
-const path=require('path')
+const path = require('path');
 console.log(process.env.mysql_user)
 
 var connection = mysql.createConnection({
@@ -26,10 +26,19 @@ connection.connect(function (err) {
 
     console.log('connected as id ' + connection.threadId);
 })
+const sessionStore = new MySQLStore({}, connection);
+sessionStore.onReady().then(() => {
+    // MySQL session store ready for use.
+    console.log('MySQLStore ready');
+}).catch(error => {
+    // Something went wrong.
+    console.error(error);
+});
 const sessionMiddleware = session({
     secret: '12345678',
     saveUninitialized: true,
     resave: false,
+    store: sessionStore,
     cookie: {
         httpOnly: true,
         maxAge: 60 * 60 * 1000,
@@ -53,22 +62,34 @@ var io = socketio(server, {
 
 const map = new Client({});
 console.log(process.env.mysql_user)
-const sessionStore = new MySQLStore({}, connection);
-sessionStore.onReady().then(() => {
-    // MySQL session store ready for use.
-    console.log('MySQLStore ready');
-}).catch(error => {
-    // Something went wrong.
-    console.error(error);
-});
+
 io.engine.use(sessionMiddleware);
 
-var addressList = [];
-connection.query('SELECT * FROM test.address_book;', (err, res, field) => {
-    addressList = res;
-    console.log(addressList)
+var addressList = {};
+var userList = {};
+var tripList = {};
+connection.query('call get_tables()', (err, res, field) => {
+    addressList = data_t(res[0]); 
+    userList = data_t(res[2]);
+    tripList = data_t(res[1]);
+    Object.keys(tripList).forEach(((e)=>{
+        tripList[e].origin=addressList[tripList[e].pickup_location]
+        tripList[e].destination=addressList[tripList[e].dropoff_location]
+    }))
+    console.log('address table:'+addressList)
+    console.log('trip table:'+userList)
+    console.log('user table:'+tripList)
 })
+var data_t = (data) => {
+    var return_data = {};
+    data.forEach(element => {
+        return_data[element.id] = element;
+    });
+    return return_data;
+}
+var getTripData=()=>{
 
+}
 app.get('/gencode', (req, res) => {
     console.log(req.query);
     console.log(process.env.uber_client_secret)
@@ -103,86 +124,114 @@ io.on('connection', (socket) => {
 
 
 var pricing = (data) => {
-    var _data=data
-    var cost=_data.car==='1'?0.5:0.25;
+    var _data = data
+    var cost = _data.car === '1' ? 0.5 : 0.25;
     if (_data.pickup_dis > _data.pickup_dis_aviod) {
-        _data.pickup_total = cost*_data.pickup_dis
+        _data.pickup_total = cost * _data.pickup_dis
     }
-    _data.dropoff_total= 2*_data.dropoff_dis
-    _data.total=_data.pickup_total+_data.dropoff_total;
+    _data.dropoff_total = 2 * _data.dropoff_dis
+    _data.total = _data.pickup_total + _data.dropoff_total;
     return _data
 }
 
-var get_directions = (destination, origin, callback) => {
-    connection.query('call findaddress(?,?)', [origin, destination], (err, res, field) => {
+var checkaddress = (destination, origin, callback) => {
+    connection.query('call findaddress(?,?)', [origin.address, destination.address], (err, res, field) => {
+        var address_id = {
+            origin: {},
+            destination: {},
+            process: 0
+        }
+        if (res[0].length > 0 && res[1].length > 0) {
+            address_id.origin = res[0][0].id;
+            address_id.destination = res[1][0].id
+            address_id.process = 1
+            callback(address_id)
+        } else {
+            if (res[1].length === 0) {
+                connection.query('call new_address(?,?,?,?,?)', [destination.address, destination.lat, destination.lng, 0, 0], (f_err, f_res, field) => {
+                    if (f_err) {
+                        console.log('saveaddress failed: ' + f_err)
+                    } else {
+                        console.log('address saved')
+                        address_id.destination = f_res[0][0]
+                        address_id.process = 2
+                    }
+                    if (res[1].length === 0) {
+                        connection.query('call new_address(?,?,?,?,?)', [origin.address, origin.lat, origin.lng, origin.pickup_dis, origin.dropoff_dis], (t_err, t_res, field) => {
+                            if (t_err) {
+                                console.log('saveaddress failed: ' + t_err)
+                            } else {
+                                console.log('address saved')
+                                address_id.origin = t_res[0][0]
+                                address_id.process = 3
+                                callback(address_id)
+                            }
+                        })
+                    }
+                })
 
-        var pricedata = {
-            pickup_dis: 0,
-            pickup_price: 0.5,
-            pickup_dis_aviod: 10,
-            dropoff_dis: 0,
-            dropoff_price: 2,
-            time: 0
+            } else {
+                address_id.destination = res[1][0].id;
+                if (res[0].length === 0) {
+                    connection.query('call new_address(?,?,?,?,?)', [origin.address, origin.lat, origin.lng, origin.pickup_dis, origin.dropoff_dis], (t_err, t_res, field) => {
+                        if (t_err) {
+                            console.log('saveaddress failed: ' + t_err)
+                        } else {
+                            console.log('address saved')
+                            address_id.origin = t_res[0][0]
+                            address_id.process = 4
+                            callback(address_id)
+                        }
+                    })
+                }
+            }
         }
-        var newaddressdata={
-            address:'',
-            lat:'',
-            lng:'',
-            pick_dis:0,
-            drop_dis:0
-        }
-        // if (res[0].length > 0 && res[1].length > 0) {
-        //     pricedata.pickup_dis = res[0].pick_dis;
-        //     pricedata.dropoff_dis = res[1].drop_dis;
-        // }
-        // else {
-        //     map.directions({ params: { key: process.env.google_map_api_key, destination: destination, origin: '6835 SE Cougar Mountain Way, Bellevue, WA 98006, USA', waypoints: [origin] } }).then((mapres) => {
-        //         // newaddressdata.address=mapres.data.results.routes[0].legs
-        //         // newaddressdata.lat=mapres.data.results.routes[0].legs
-        //         // newaddressdata.lng=mapres.data.results.routes[0].legs
-        //         // newaddressdata.pick_dis=mapres.data.results.routes[0].legs
-        //         // newaddressdata.drop_dis=mapres.data.results.routes[0].legs
-        //         callback(mapres.data.results)
-        //     }).catch((err) => {
-        //         callback(err)
-        //     })
-        // }
     })
-
 }
-app.get('/',(req,res)=>{
+app.get('/', (req, res) => {
     res.sendFile('index.html')
+})
+app.get('/newres', (req, res) => {
+
 })
 app.get('/price', (req, res) => {
     var data = req.query;
     console.log(data);
-    //res.send(data)
-    // map.geocode({params:{ key: process.env.google_map_api_key, address: data.start }}).then((mapres) => {
-    //     console.log(mapres)
-    //     res.send(mapres.data.results[0])
-    // }).catch((err) => {
-    //     console.log(err)
-    //     res.send(err)
-    // })
     map.directions({ params: { key: process.env.google_map_api_key, destination: data.end, origin: '6835 SE Cougar Mountain Way, Bellevue, WA 98006, USA', waypoints: [data.start] } }).then((mapres) => {
         console.log(mapres)
         var pricedata = {
-            car:data.car,
-            address:mapres.data.routes[0].legs[0].end_address,
-            lat:mapres.data.routes[0].legs[0].end_location.lat,
-            lng:mapres.data.routes[0].legs[0].end_location.lng,
-            pickup_dis: Math.round(mapres.data.routes[0].legs[0].distance.value/1609.344),
+            pickup_date: data.date,
+            pickup_time: data.time,
+            car: data.car,
+            address1: {
+                address: mapres.data.routes[0].legs[0].end_address,
+                lat: mapres.data.routes[0].legs[0].end_location.lat,
+                lng: mapres.data.routes[0].legs[0].end_location.lng,
+                pickup_dis: Math.round(mapres.data.routes[0].legs[0].distance.value / 1609.344),
+                dropoff_dis: Math.round(mapres.data.routes[0].legs[1].distance.value / 1609.344)
+            },
+            address2: {
+                address: mapres.data.routes[0].legs[1].end_address,
+                lat: mapres.data.routes[0].legs[1].end_location.lat,
+                lng: mapres.data.routes[0].legs[1].end_location.lng,
+                pickup_dis: Math.round(mapres.data.routes[0].legs[0].distance.value / 1609.344),
+                dropoff_dis: Math.round(mapres.data.routes[0].legs[1].distance.value / 1609.344)
+            },
+            lat: mapres.data.routes[0].legs[0].end_location.lat,
+            lng: mapres.data.routes[0].legs[0].end_location.lng,
+            pickup_dis: Math.round(mapres.data.routes[0].legs[0].distance.value / 1609.344),
             pickup_price: 0.5,
-            pickup_total:0,
+            pickup_total: 0,
             pickup_dis_aviod: 8,
-            dropoff_dis: Math.round(mapres.data.routes[0].legs[1].distance.value/1609.344),
+            dropoff_dis: Math.round(mapres.data.routes[0].legs[1].distance.value / 1609.344),
             dropoff_price: 2,
-            dropoff_total:0,
-            total:0,
-            time: mapres.data.routes[0].legs[1].duration.text
+            dropoff_total: 0,
+            total: 0,
+            esttime: mapres.data.routes[0].legs[1].duration.text
         }
 
-        pricedata=pricing(pricedata)
+        pricedata = pricing(pricedata)
+        req.session.bookinfo = pricedata;
         res.send(pricedata)
 
     }).catch((err) => {
@@ -190,6 +239,40 @@ app.get('/price', (req, res) => {
         res.send(err)
     })
 
+
+})
+
+app.get('/book', (req, res) => {
+    var bookinfo = req.session.bookinfo;
+    checkaddress(bookinfo.address2, bookinfo.address1, (data) => {
+        connection.query('call new_trip(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+            0,
+            bookinfo.pickup_date,
+            bookinfo.pickup_time,
+            data.origin,
+            bookinfo.pickup_dis,
+            data.destination,
+            bookinfo.dropoff_dis,
+            bookinfo.pickup_total,
+            bookinfo.dropoff_total,
+            bookinfo.total,
+            "",
+            "",
+            bookinfo.esttime,
+            bookinfo.car,
+            bookinfo.pickup_price,
+            bookinfo.dropoff_price
+        ], (err, mysql_res, fil) => {
+            if (err) {
+                console.log(err);
+                res.send(err);
+            } else {
+                console.log(mysql_res);
+                res.send(mysql_res);
+            }
+        })
+
+    })
 
 })
 server.listen(port, () => {

@@ -1,4 +1,5 @@
-import { Card, Col, Container, Row, Accordion } from "react-bootstrap"
+import axios from "axios"
+import { Card, Col, Container, Row, Accordion, Button } from "react-bootstrap"
 
 
 function Summary(props) {
@@ -12,7 +13,7 @@ function Summary(props) {
                             <Accordion.Body>
                                 <Row>
                                     <Col >
-                                        Date:
+                                        出发日期:
                                     </Col>
                                     <Col style={{ 'marginLeft': 'auto', textAlign: 'right' }}>
                                         {props.data_date}
@@ -20,7 +21,7 @@ function Summary(props) {
                                 </Row>
                                 <Row>
                                     <Col>
-                                        Time:
+                                        出发时间:
                                     </Col>
                                     <Col style={{ 'marginLeft': 'auto', textAlign: 'right' }}>
                                         {props.data_time}
@@ -81,7 +82,7 @@ function Summary(props) {
                                     <Col>8miles 内减免
                                     </Col>
                                 </Row>
-                            <Row>
+                                <Row>
                                     <Col>
                                         距离:
                                     </Col>
@@ -108,6 +109,11 @@ function Summary(props) {
                             </Accordion.Body>
                         </Accordion.Item>
                     </Accordion>
+                    <Row><Col><Button onClick={() => [
+                        axios.get('/book', (req, res) => {
+                            console.log(res.data);
+                        })
+                    ]}>确认行程</Button></Col></Row>
                 </Card.Body>
             </Card>
         </Row>

@@ -1,14 +1,16 @@
 import axios from 'axios';
-import { useState, StrictMode, useEffect } from 'react';
+import { useState, StrictMode, useEffect, useRef } from 'react';
 import { Button, Container, Navbar, Row } from 'react-bootstrap';
 import {
     Outlet,
     useLocation,
     createBrowserRouter,
     Link,
-    BrowserRouter as Router,
+    BrowserRouter,
     Routes,
-    Route
+    Route,
+    useNavigate,
+    useHref
 } from "react-router-dom";
 import { createContext } from 'react';
 import { io } from "socket.io-client";
@@ -24,14 +26,6 @@ export const end = createContext(null);
 export const car = createContext(null);
 export const note = createContext(null);
 
-const router = createBrowserRouter([
-    {
-        path: '/pageone', element: < Pageone />
-    },
-    {
-
-        path: '/pagetwo', element: < Pagetwo />
-    }]);
 
 
 const PageLayout = ({ children }) => children;
@@ -71,25 +65,30 @@ const AnimationLayout = () => {
     );
 };
 function Test(props) {
+    const ref_link = useRef(null);
     const [data_date, setdate] = useState('');
     const [data_time, settime] = useState('');
     const [data_start, setstart] = useState('');
     const [data_end, setend] = useState('');
     const [data_car, setcar] = useState('')
     const [text, settext] = useState('none')
-    const [data_dropoffdis,setdropoffdis]=useState(0);
-    const [data_dropoffprice,setdropoffprice]=useState(0)
-    const [data_dropofftotal,setdropofftotal]=useState(0)
-    const [data_pickupdis,setpickupdis]=useState(0);
-    const [data_pickupprices,setpickupprices]=useState(0);
-    const [data_pickuptotal,setpickuptotal]=useState(0);
-    const [data_void,set_void]=useState(0);
-    
+    const [data_dropoffdis, setdropoffdis] = useState(0);
+    const [data_dropoffprice, setdropoffprice] = useState(0)
+    const [data_dropofftotal, setdropofftotal] = useState(0)
+    const [data_pickupdis, setpickupdis] = useState(0);
+    const [data_pickupprices, setpickupprices] = useState(0);
+    const [data_pickuptotal, setpickuptotal] = useState(0);
+    const [data_void, set_void] = useState(0);
+
+
+
+    const navigate = useNavigate();
     useEffect(() => {
         // socket.connect();
     })
-    var getprice = () => {
-        axios.get('/price',  {params:{ date: data_date, time: data_time, start: data_start, end: data_end,car:data_car }} ).then((res)=>{
+    var getprice = (event) => {
+        event.preventDefault();
+        axios.get('/price', { params: { date: data_date, time: data_time, start: data_start, end: data_end, car: data_car } }).then((res) => {
             console.log(res);
             setstart(res.data.address)
             setdropoffdis(res.data.dropoff_dis)
@@ -99,9 +98,13 @@ function Test(props) {
             setpickupprices(res.data.pickup_price)
             setpickuptotal(res.data.pickup_total)
             set_void(res.data.pickup_dis_aviod)
-        }).catch((err)=>{
+
+        }).then(() => {
+            navigate('pagethree')
+        }).catch((err) => {
             console.log(err)
         })
+
     }
     // useEffect(() => {
     //     socket.emit('coming',{date:data_date,time:data_time,start:data_start,end:data_end})
@@ -112,38 +115,36 @@ function Test(props) {
                 <start.Provider value={{ data_start, setstart }}>
                     <end.Provider value={{ data_end, setend }}>
                         <car.Provider value={{ data_car, setcar }}>
-                            <Container style={{ 'maxWidth': '400px', 'minHeight': '400px', 'height': '100vh' }}>
+                            <Container style={{ 'maxWidth': '600px', 'minHeight': '800px', 'height': '100vh' }}>
                                 <Row style={{ 'height': '100%' }}>
                                     <StrictMode>
-                                        <Router>
-                                            <Navbar>
-                                                <Link to='pageone'>pageone</Link>
-                                                <Link to='pagetwo'>pagetwo</Link>
-                                                <Link to='/pagethree'>pagethree</Link>
-                                            </Navbar>
-                                            <Routes>
-                                                <Route element={<AnimationLayout />}>
+                                        <Navbar expand="lg" className="bg-body-tertiary" fixed="top">
+                                            <Link to='pageone'>pageone</Link>
+                                            <Link to='pagetwo'>pagetwo</Link>
+                                            <Link to='pagethree'>pagethree</Link>
+                                        </Navbar>
+                                        <Routes>
+                                            <Route element={<AnimationLayout />}>
 
-                                                    {[<Route path='/pageone' name='pageone' element={<Pageone></Pageone>} />,
-                                                    <Route path='/pagetwo' name='pagetwo' element={<Pagetwo getprice={getprice}></Pagetwo>} />,
-                                                    <Route path='/pagethree' name='pagethree' element={<Summary 
-                                                        data_dropoffdis={data_dropoffdis} 
-                                                        data_dropoffprice={data_dropoffprice}
-                                                        data_dropofftotal={data_dropofftotal}
-                                                        data_pickupdis={data_pickupdis}
-                                                        data_pickupprices={data_pickupprices}
-                                                        data_pickuptotal={data_pickuptotal}
-                                                        data_void={data_void}
-                                                        data_date={data_date}
-                                                        data_time={data_time}
-                                                        data_car={data_car}
-                                                        data_start={data_start}
-                                                        data_end={data_end}
-                                                        ></Summary>} />]
-                                                    }
-                                                </Route>
-                                            </Routes>
-                                        </Router>
+                                                {[<Route path='/pageone' name='pageone' element={<Pageone></Pageone>} />,
+                                                <Route path='/pagetwo' name='pagetwo' element={<Pagetwo getprice={getprice}></Pagetwo>} />,
+                                                <Route path='/pagethree' name='pagethree' element={<Summary
+                                                    data_dropoffdis={data_dropoffdis}
+                                                    data_dropoffprice={data_dropoffprice}
+                                                    data_dropofftotal={data_dropofftotal}
+                                                    data_pickupdis={data_pickupdis}
+                                                    data_pickupprices={data_pickupprices}
+                                                    data_pickuptotal={data_pickuptotal}
+                                                    data_void={data_void}
+                                                    data_date={data_date}
+                                                    data_time={data_time}
+                                                    data_car={data_car}
+                                                    data_start={data_start}
+                                                    data_end={data_end}
+                                                ></Summary>} />]
+                                                }
+                                            </Route>
+                                        </Routes>
                                     </StrictMode>
                                 </Row>
 
